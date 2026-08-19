@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Timetracker Tray
+Comment=Pause/resume timetracker screenshot capture
+Exec=__SCRIPT_PATH__
+Icon=camera-photo-symbolic
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

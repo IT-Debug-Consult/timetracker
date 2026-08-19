@@ -1,0 +1,6 @@
+[Unit]
+Description=Timetracker screenshot capture
+
+[Service]
+Type=oneshot
+ExecStart=__SCRIPT_PATH__
