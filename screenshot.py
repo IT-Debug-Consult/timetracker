@@ -3,7 +3,15 @@
 
 GNOME's direct Shell D-Bus screenshot interface is locked down as of
 GNOME 50, so this goes through org.freedesktop.portal.Screenshot instead.
-The portal may show a one-time permission dialog per login session.
+Runs sandboxed (see ../flatpak/) so the portal grants consent to this app
+specifically rather than to every unsandboxed process on the system.
+
+The very first capture (or after a permission reset) needs a one-time
+consent grant. GNOME refuses to show that consent dialog for a headless
+caller with no window ("only the focused app is allowed to show a system
+access dialog"), so on failure we briefly open a focused 1x1 window, export
+its handle, and retry with that as the dialog's parent. Once the grant
+exists, all later captures succeed headlessly with no window at all.
 """
 
 import shutil
@@ -21,6 +29,7 @@ import pause
 
 OUTPUT_ROOT = Path.home() / ".local" / "share" / "timetracker" / "screenshots"
 RESPONSE_TIMEOUT_SECONDS = 30
+WINDOW_HANDLE_TIMEOUT_SECONDS = 10
 
 
 def is_screen_locked(bus: Gio.DBusConnection) -> bool:
@@ -35,11 +44,11 @@ def is_screen_locked(bus: Gio.DBusConnection) -> bool:
         return False
 
 
-def request_screenshot_uri(bus: Gio.DBusConnection) -> str:
+def request_screenshot_uri(bus: Gio.DBusConnection, parent_window: str = "") -> str | None:
     request_path = bus.call_sync(
         "org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop",
         "org.freedesktop.portal.Screenshot", "Screenshot",
-        GLib.Variant("(sa{sv})", ("", {"interactive": GLib.Variant("b", False)})),
+        GLib.Variant("(sa{sv})", (parent_window, {"interactive": GLib.Variant("b", False)})),
         GLib.VariantType("(o)"), Gio.DBusCallFlags.NONE, 5000, None,
     ).unpack()[0]
 
@@ -68,15 +77,47 @@ def request_screenshot_uri(bus: Gio.DBusConnection) -> str:
     if not timed_out["flag"]:
         GLib.source_remove(timeout_id)
 
-    if timed_out["flag"]:
-        sys.exit("screenshot request timed out waiting for portal response")
-    if response.get("code") != 0:
-        sys.exit(f"screenshot request denied or failed (code={response.get('code')})")
+    if timed_out["flag"] or response.get("code") != 0:
+        return None
 
-    uri = response["results"].get("uri")
-    if not uri:
-        sys.exit("portal response had no screenshot uri")
-    return uri
+    return response["results"].get("uri")
+
+
+def get_window_handle() -> str | None:
+    """Open a brief, focused window and export its handle for the portal."""
+    gi.require_version("Gtk", "4.0")
+    gi.require_version("GdkWayland", "4.0")
+    from gi.repository import Gtk  # noqa: PLC0415
+    from gi.repository import GdkWayland  # noqa: F401,PLC0415  (registers the wayland toplevel type)
+
+    Gtk.init()
+    window = Gtk.Window(title="Timetracker")
+    window.set_default_size(1, 1)
+    window.present()
+
+    loop = GLib.MainLoop()
+    handle_box = {}
+
+    def on_handle(_toplevel, handle):
+        handle_box["handle"] = handle
+        loop.quit()
+
+    def try_export():
+        surface = window.get_surface()
+        if surface is None:
+            return True
+        if not surface.export_handle(on_handle):
+            loop.quit()
+        return False
+
+    GLib.idle_add(try_export)
+    GLib.timeout_add_seconds(WINDOW_HANDLE_TIMEOUT_SECONDS, loop.quit)
+
+    loop.run()
+    window.destroy()
+
+    handle = handle_box.get("handle")
+    return f"wayland:{handle}" if handle else None
 
 
 def main() -> None:
@@ -89,6 +130,14 @@ def main() -> None:
         return
 
     uri = request_screenshot_uri(bus)
+    if uri is None:
+        parent_window = get_window_handle()
+        if parent_window is None:
+            sys.exit("could not obtain a window handle for first-time screenshot consent")
+        uri = request_screenshot_uri(bus, parent_window)
+        if uri is None:
+            sys.exit("screenshot request denied even with a focused window")
+
     source = Path(unquote(urlparse(uri).path))
 
     now = datetime.now()

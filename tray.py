@@ -68,7 +68,7 @@ class TimetrackerTray:
         until = pause.get_pause_until()
         if until is None:
             self.indicator.set_icon_full(ICON_ACTIVE, "Timetracker: capturing")
-            self.status_item.set_label("Capturing every 5 min")
+            self.status_item.set_label("Capturing every 15 min")
             self.resume_item.set_sensitive(False)
         else:
             remaining = max(0, int(until - time.time()))

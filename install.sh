@@ -2,16 +2,24 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT_PATH="$REPO_DIR/screenshot.py"
 TRAY_PATH="$REPO_DIR/tray.py"
 UNIT_DIR="$HOME/.config/systemd/user"
 AUTOSTART_DIR="$HOME/.config/autostart"
+APP_ID="at.abmayer.Timetracker"
 
-chmod +x "$SCRIPT_PATH" "$TRAY_PATH"
+chmod +x "$TRAY_PATH"
 mkdir -p "$UNIT_DIR" "$AUTOSTART_DIR"
 
-sed "s|__SCRIPT_PATH__|$SCRIPT_PATH|" "$REPO_DIR/systemd/timetracker-screenshot.service" \
-    > "$UNIT_DIR/timetracker-screenshot.service"
+# --- Flatpak sandbox for the screenshot capturer ---
+# Runs screenshot.py with its own portal identity, instead of the shared
+# unsandboxed '' identity every unconfined process on the system shares.
+# See flatpak/at.abmayer.Timetracker.json and README.md for why.
+flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+flatpak install --user -y flathub org.gnome.Platform//50 org.gnome.Sdk//50
+flatpak-builder --user --install --force-clean \
+    "$REPO_DIR/flatpak/build-dir" "$REPO_DIR/flatpak/$APP_ID.json"
+
+cp "$REPO_DIR/systemd/timetracker-screenshot.service" "$UNIT_DIR/timetracker-screenshot.service"
 cp "$REPO_DIR/systemd/timetracker-screenshot.timer" "$UNIT_DIR/timetracker-screenshot.timer"
 
 sed "s|__SCRIPT_PATH__|$TRAY_PATH|" "$REPO_DIR/systemd/timetracker-tray.desktop" \
@@ -26,7 +34,7 @@ if ! pgrep -f "python3 $TRAY_PATH" > /dev/null; then
     disown
 fi
 
-echo "Installed. Screenshots every 5 minutes -> ~/.local/share/timetracker/screenshots/"
+echo "Installed. Screenshots every 15 minutes -> ~/.local/share/timetracker/screenshots/"
 echo "Tray icon installed for autostart and launched now."
 echo "Check status:  systemctl --user status timetracker-screenshot.timer"
 echo "View logs:     journalctl --user -u timetracker-screenshot.service"

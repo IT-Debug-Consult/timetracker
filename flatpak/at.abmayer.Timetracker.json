@@ -1,0 +1,32 @@
+{
+    "app-id": "at.abmayer.Timetracker",
+    "runtime": "org.gnome.Platform",
+    "runtime-version": "50",
+    "sdk": "org.gnome.Sdk",
+    "command": "timetracker-screenshot",
+    "finish-args": [
+        "--socket=session-bus",
+        "--socket=wayland",
+        "--socket=fallback-x11",
+        "--device=dri",
+        "--talk-name=org.gnome.ScreenSaver",
+        "--filesystem=xdg-data/timetracker:create",
+        "--filesystem=xdg-pictures"
+    ],
+    "modules": [
+        {
+            "name": "timetracker-screenshot",
+            "buildsystem": "simple",
+            "build-commands": [
+                "install -Dm644 screenshot.py /app/lib/timetracker/screenshot.py",
+                "install -Dm644 pause.py /app/lib/timetracker/pause.py",
+                "install -Dm755 timetracker-screenshot /app/bin/timetracker-screenshot"
+            ],
+            "sources": [
+                {"type": "file", "path": "../screenshot.py"},
+                {"type": "file", "path": "../pause.py"},
+                {"type": "file", "path": "timetracker-screenshot"}
+            ]
+        }
+    ]
+}
