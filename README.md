@@ -1,6 +1,6 @@
 # timetracker
 
-Captures a desktop screenshot every 15 minutes for manual time-tracking review.
+Captures a desktop screenshot every 7.5 minutes for manual time-tracking review.
 
 - `screenshot.py` — captures one screenshot via the XDG Desktop Portal (GNOME's
   direct Shell D-Bus screenshot API is locked down since GNOME 50) and saves it
@@ -16,7 +16,7 @@ Captures a desktop screenshot every 15 minutes for manual time-tracking review.
 - `flatpak/` — a Flatpak manifest (`at.it_debug.timetracker`) that packages
   `screenshot.py` + `pause.py` so the screenshot portal grant is scoped to this
   app specifically (see "Sandboxing" below).
-- `systemd/` — a user-level systemd timer that runs the Flatpak every 15
+- `systemd/` — a user-level systemd timer that runs the Flatpak every 7.5
   minutes, plus the tray icon's autostart `.desktop` entry.
 - `install.sh` — installs the GNOME Flatpak runtime/SDK, builds and installs
   the Flatpak, enables the timer, and launches the tray icon.

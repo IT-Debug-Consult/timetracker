@@ -34,7 +34,7 @@ if ! pgrep -f "python3 $TRAY_PATH" > /dev/null; then
     disown
 fi
 
-echo "Installed. Screenshots every 15 minutes -> ~/.local/share/timetracker/screenshots/"
+echo "Installed. Screenshots every 7.5 minutes -> ~/.local/share/timetracker/screenshots/"
 echo "Tray icon installed for autostart and launched now."
 echo "Check status:  systemctl --user status timetracker-screenshot.timer"
 echo "View logs:     journalctl --user -u timetracker-screenshot.service"
