@@ -5,7 +5,7 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRAY_PATH="$REPO_DIR/tray.py"
 UNIT_DIR="$HOME/.config/systemd/user"
 AUTOSTART_DIR="$HOME/.config/autostart"
-APP_ID="at.abmayer.Timetracker"
+APP_ID="at.it_debug.timetracker"
 
 chmod +x "$TRAY_PATH"
 mkdir -p "$UNIT_DIR" "$AUTOSTART_DIR"
@@ -13,7 +13,7 @@ mkdir -p "$UNIT_DIR" "$AUTOSTART_DIR"
 # --- Flatpak sandbox for the screenshot capturer ---
 # Runs screenshot.py with its own portal identity, instead of the shared
 # unsandboxed '' identity every unconfined process on the system shares.
-# See flatpak/at.abmayer.Timetracker.json and README.md for why.
+# See flatpak/at.it_debug.timetracker.json and README.md for why.
 flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 flatpak install --user -y flathub org.gnome.Platform//50 org.gnome.Sdk//50
 flatpak-builder --user --install --force-clean \

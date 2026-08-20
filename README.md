@@ -13,7 +13,7 @@ Captures a desktop screenshot every 15 minutes for manual time-tracking review.
   15/30/60/120 minutes or resume immediately. Requires the "AppIndicator and
   KStatusNotifierItem Support" GNOME Shell extension to be visible. Runs
   unsandboxed (it only needs local D-Bus/pause-state access, no portal calls).
-- `flatpak/` — a Flatpak manifest (`at.abmayer.Timetracker`) that packages
+- `flatpak/` — a Flatpak manifest (`at.it_debug.timetracker`) that packages
   `screenshot.py` + `pause.py` so the screenshot portal grant is scoped to this
   app specifically (see "Sandboxing" below).
 - `systemd/` — a user-level systemd timer that runs the Flatpak every 15
@@ -41,7 +41,7 @@ on disk (`~/.local/share/flatpak/db/screenshot`) and persists across reboots
 
 ## Sandboxing
 
-`screenshot.py` runs as a proper Flatpak app (`at.abmayer.Timetracker`)
+`screenshot.py` runs as a proper Flatpak app (`at.it_debug.timetracker`)
 instead of a plain unsandboxed script. This matters because of how
 `xdg-desktop-portal` identifies callers: a plain unsandboxed process has no
 identity the portal can distinguish, so *any* unsandboxed program on the
@@ -69,7 +69,7 @@ gdbus call --session --dest org.freedesktop.impl.portal.PermissionStore \
 # revoke this app's grant (brings back the one-time window dialog on next capture)
 gdbus call --session --dest org.freedesktop.impl.portal.PermissionStore \
   --object-path /org/freedesktop/impl/portal/PermissionStore \
-  --method org.freedesktop.impl.portal.PermissionStore.DeletePermission "screenshot" "screenshot" "at.abmayer.Timetracker"
+  --method org.freedesktop.impl.portal.PermissionStore.DeletePermission "screenshot" "screenshot" "at.it_debug.timetracker"
 ```
 
 To rebuild after editing `screenshot.py` or `pause.py`, just re-run

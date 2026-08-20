@@ -3,4 +3,4 @@ Description=Timetracker screenshot capture
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/flatpak run at.abmayer.Timetracker
+ExecStart=/usr/bin/flatpak run at.it_debug.timetracker
