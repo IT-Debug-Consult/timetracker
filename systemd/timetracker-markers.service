@@ -1,0 +1,12 @@
+[Unit]
+Description=Timetracker marker frames (suspend / screen lock)
+After=dbus.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 __SCRIPT_PATH__
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

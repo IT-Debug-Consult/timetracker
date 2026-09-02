@@ -3,11 +3,12 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRAY_PATH="$REPO_DIR/tray.py"
+MARKERS_PATH="$REPO_DIR/markers.py"
 UNIT_DIR="$HOME/.config/systemd/user"
 AUTOSTART_DIR="$HOME/.config/autostart"
 APP_ID="at.it_debug.timetracker"
 
-chmod +x "$TRAY_PATH"
+chmod +x "$TRAY_PATH" "$MARKERS_PATH"
 mkdir -p "$UNIT_DIR" "$AUTOSTART_DIR"
 
 # --- Flatpak sandbox for the screenshot capturer ---
@@ -22,11 +23,15 @@ flatpak-builder --user --install --force-clean \
 cp "$REPO_DIR/systemd/timetracker-screenshot.service" "$UNIT_DIR/timetracker-screenshot.service"
 cp "$REPO_DIR/systemd/timetracker-screenshot.timer" "$UNIT_DIR/timetracker-screenshot.timer"
 
+sed "s|__SCRIPT_PATH__|$MARKERS_PATH|" "$REPO_DIR/systemd/timetracker-markers.service" \
+    > "$UNIT_DIR/timetracker-markers.service"
+
 sed "s|__SCRIPT_PATH__|$TRAY_PATH|" "$REPO_DIR/systemd/timetracker-tray.desktop" \
     > "$AUTOSTART_DIR/timetracker-tray.desktop"
 
 systemctl --user daemon-reload
 systemctl --user enable --now timetracker-screenshot.timer
+systemctl --user enable --now timetracker-markers.service
 
 # Start the tray icon now too, so it's usable without a re-login.
 if ! pgrep -f "python3 $TRAY_PATH" > /dev/null; then
@@ -35,6 +40,7 @@ if ! pgrep -f "python3 $TRAY_PATH" > /dev/null; then
 fi
 
 echo "Installed. Screenshots every 7.5 minutes -> ~/.local/share/timetracker/screenshots/"
+echo "Marker service running (writes a frame on each suspend and screen lock)."
 echo "Tray icon installed for autostart and launched now."
 echo "Check status:  systemctl --user status timetracker-screenshot.timer"
 echo "View logs:     journalctl --user -u timetracker-screenshot.service"

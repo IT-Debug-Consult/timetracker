@@ -9,6 +9,18 @@ Captures a desktop screenshot every 7.5 minutes for manual time-tracking review.
 - `pause.py` — shared pause-state module (`~/.local/share/timetracker/pause.json`).
   A pause expires either when its duration elapses or at the next boot,
   whichever comes first.
+- `markers.py` — a small user daemon that reacts to session events the timer
+  can't capture. It writes synthetic 640x480 frames into the same screenshot
+  folder for a `suspend` (from logind's `PrepareForSleep` on the system bus,
+  guarded by a `delay` sleep inhibitor so it lands on disk before the machine
+  goes down) and a `screen locked` (from `org.gnome.ScreenSaver`'s
+  `ActiveChanged` on the session bus) — without these a suspend or lock is just
+  an unexplained gap. On **unlock** it instead triggers one real capture right
+  away (`systemctl --user start timetracker-screenshot.service`) so returning
+  to the desk is sampled immediately rather than up to 7.5 min later. Markers
+  are skipped while paused; a suspend usually locks first, so expect a
+  lock+suspend pair a moment apart. Runs unsandboxed (local file write +
+  `systemctl` + `login1` / `ScreenSaver` D-Bus only).
 - `tray.py` — a system tray icon (top panel) with a menu to pause capture for
   15/30/60/120 minutes or resume immediately. Requires the "AppIndicator and
   KStatusNotifierItem Support" GNOME Shell extension to be visible. Runs
@@ -17,9 +29,11 @@ Captures a desktop screenshot every 7.5 minutes for manual time-tracking review.
   `screenshot.py` + `pause.py` so the screenshot portal grant is scoped to this
   app specifically (see "Sandboxing" below).
 - `systemd/` — a user-level systemd timer that runs the Flatpak every 7.5
-  minutes, plus the tray icon's autostart `.desktop` entry.
+  minutes, a `timetracker-markers.service` unit that keeps `markers.py`
+  running, plus the tray icon's autostart `.desktop` entry.
 - `install.sh` — installs the GNOME Flatpak runtime/SDK, builds and installs
-  the Flatpak, enables the timer, and launches the tray icon.
+  the Flatpak, enables the timer and the marker service, and launches the
+  tray icon.
 
 ## Setup
 
@@ -81,6 +95,7 @@ To rebuild after editing `screenshot.py` or `pause.py`, just re-run
 systemctl --user status timetracker-screenshot.timer   # check schedule
 journalctl --user -u timetracker-screenshot.service     # view logs
 systemctl --user stop timetracker-screenshot.timer      # stop entirely
+journalctl --user -u timetracker-markers.service         # suspend / lock marker logs
 ```
 
 To pause temporarily, use the tray icon menu instead of stopping the timer —
