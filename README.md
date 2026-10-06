@@ -150,3 +150,7 @@ it resumes itself automatically after the chosen duration or at next boot.
 
 Screenshots accumulate under `~/.local/share/timetracker/screenshots/` with no
 automatic cleanup — delete old dated folders manually as needed.
+
+## License
+
+BSD 2-Clause, see [LICENSE](LICENSE).
