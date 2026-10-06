@@ -1,2 +1,2 @@
 #!/bin/sh
-exec python3 /app/lib/timetracker/screenshot.py
+exec python3 /app/lib/timetracker/screenshot.py "$@"

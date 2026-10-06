@@ -5,7 +5,14 @@ Captures a desktop screenshot every 7.5 minutes for manual time-tracking review.
 - `screenshot.py` — captures one screenshot via the XDG Desktop Portal (GNOME's
   direct Shell D-Bus screenshot API is locked down since GNOME 50) and saves it
   to `~/.local/share/timetracker/screenshots/YYYY-MM-DD/HH-MM-SS.png`. Skips
-  capture while the screen is locked or while paused (see below).
+  capture while the screen is locked or while paused (see below). Two capture
+  methods, selected with `--method`:
+  - `screenshot` (default) — the Screenshot portal, which on GNOME always
+    flashes the screen and plays a shutter sound.
+  - `screencast` — silent. Opens a ScreenCast portal session, pulls one frame
+    per monitor off the PipeWire stream, stitches them together and closes the
+    session again. The only visible trace is GNOME's screen-sharing indicator
+    in the top bar for a moment.
 - `pause.py` — shared pause-state module (`~/.local/share/timetracker/pause.json`).
   A pause expires either when its duration elapses or at the next boot,
   whichever comes first.
@@ -26,7 +33,7 @@ Captures a desktop screenshot every 7.5 minutes for manual time-tracking review.
   KStatusNotifierItem Support" GNOME Shell extension to be visible. Runs
   unsandboxed (it only needs local D-Bus/pause-state access, no portal calls).
 - `flatpak/` — a Flatpak manifest (`at.it_debug.timetracker`) that packages
-  `screenshot.py` + `pause.py` so the screenshot portal grant is scoped to this
+  `screenshot.py` + `pause.py` so the portal grants are scoped to this
   app specifically (see "Sandboxing" below).
 - `systemd/` — a user-level systemd timer that runs the Flatpak every 7.5
   minutes, a `timetracker-markers.service` unit that keeps `markers.py`
@@ -45,13 +52,45 @@ Requires `flatpak` and `flatpak-builder` (both installed on this system
 already). The first run downloads the `org.gnome.Platform`/`org.gnome.Sdk`
 runtime (//50) from Flathub if not already present — a few hundred MB.
 
-The very first capture needs a one-time consent dialog. GNOME refuses to show
-that dialog for a window-less/headless caller ("only the focused app is
-allowed to show a system access dialog"), so `screenshot.py` briefly opens a
-focused 1x1 window just for that first request, to give the dialog something
-to attach to. Click Allow when it appears. From then on the grant is stored
-on disk (`~/.local/share/flatpak/db/screenshot`) and persists across reboots
-— every later capture runs fully headless, no window, in well under a second.
+The very first capture needs a one-time consent, separately for each method.
+
+With `screencast` it is a screen-sharing dialog: select all monitors and click
+Share. The portal answers with a restore token, which `screenshot.py` keeps in
+`~/.local/share/timetracker/screencast-token` and renews on every capture
+(tokens are single-use), so the grant persists across reboots — every later
+capture runs fully headless, no dialog, in about a second.
+
+Note that the `screencast` grant covers exactly the monitors selected in the
+dialog, identified by vendor/model/serial (not by connector) — it is not a
+grant for "all screens". When the monitor setup changes
+(xdg-desktop-portal-gnome 50):
+
+- All granted monitors present plus a new one: no prompt, and the new monitor
+  is silently missing from the captures.
+- Any granted monitor missing (undocked, monitor swapped): the grant is not
+  used and the dialog comes back on every capture until it is answered. If it
+  is ignored, that capture fails after about two minutes.
+- Same monitors on different ports: no prompt, nothing changes.
+
+Answering the dialog replaces the grant. So after approving only the laptop
+panel while undocked, captures stay laptop-only once docked again, without
+any warning — reset the grant (see "Sandboxing" below) and approve all
+monitors to fix that. The `screenshot` method has none of this; it always
+captures whatever is connected.
+
+With `screenshot` GNOME refuses to show the consent dialog for a
+window-less/headless caller ("only the focused app is allowed to show a system
+access dialog"), so `screenshot.py` briefly opens a focused 1x1 window just
+for that first request, to give the dialog something to attach to. Click Allow
+when it appears. From then on the grant is stored on disk
+(`~/.local/share/flatpak/db/screenshot`) and persists across reboots.
+
+To switch the timer to the other method, append the switch to `ExecStart` in
+`systemd/timetracker-screenshot.service` and re-run `./install.sh`:
+
+```
+ExecStart=/usr/bin/flatpak run at.it_debug.timetracker --method screencast
+```
 
 ## Sandboxing
 
@@ -71,8 +110,16 @@ rejected: this version of `xdg-desktop-portal` cross-checks a `bwrapinfo.json`
 that only the real `flatpak run` launcher produces, specifically to prevent
 that kind of identity spoofing.
 
-To inspect or reset grants directly (there's no GNOME Settings page for
-this — App Permissions there only covers different, malcontent-tracked data):
+To reset the `screencast` grant (brings back the one-time dialog on the next
+capture, e.g. after changing the monitor setup), delete the restore token:
+
+```bash
+rm ~/.local/share/timetracker/screencast-token
+```
+
+To inspect or reset the `screenshot` grant directly (there's no GNOME Settings
+page for this — App Permissions there only covers different,
+malcontent-tracked data):
 
 ```bash
 # view current grants
