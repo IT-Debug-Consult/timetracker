@@ -30,7 +30,10 @@ Captures a desktop screenshot every 7.5 minutes for manual time-tracking review.
   `systemctl` + `login1` / `ScreenSaver` D-Bus only).
 - `tray.py` — a system tray icon (top panel) with a menu to pause capture for
   15/30/60/120 minutes or resume immediately. Requires the "AppIndicator and
-  KStatusNotifierItem Support" GNOME Shell extension to be visible. Runs
+  KStatusNotifierItem Support" GNOME Shell extension to be visible. Ubuntu ships 
+  the extension preinstalled under the name "Ubuntu AppIndicators". On other 
+  distributions such as Fedora or Debian with stock GNOME, you would have 
+  to install the extension yourself from extensions.gnome.org. `tray.py` runs
   unsandboxed (it only needs local D-Bus/pause-state access, no portal calls).
 - `flatpak/` — a Flatpak manifest (`at.it_debug.timetracker`) that packages
   `screenshot.py` + `pause.py` so the portal grants are scoped to this
@@ -44,12 +47,34 @@ Captures a desktop screenshot every 7.5 minutes for manual time-tracking review.
 
 ## Setup
 
+Only tested on Ubuntu 26.04 (GNOME 50, Wayland session). Other distributions
+or releases may work but are untested.
+
 ```
 ./install.sh
 ```
 
-Requires `flatpak` and `flatpak-builder` (both installed on this system
-already). The first run downloads the `org.gnome.Platform`/`org.gnome.Sdk`
+Requires `flatpak` and `flatpak-builder` packages. You can install with apt:
+
+```
+apt install flatpak  flatpak-builder
+```
+
+`screenshot.py` needs no further Python packages: it runs inside the Flatpak,
+and the GNOME runtime already provides its bindings (GLib, GTK 4, GStreamer,
+GdkPixbuf). `markers.py` and `tray.py` run directly on the host and use only
+the Python standard library plus these system packages (no `pip` needed):
+
+- `python3-gi` — GObject bindings (GLib/Gio), used by both
+- `python3-cairo` — draws the marker frames in `markers.py`
+- `gir1.2-gtk-3.0` and `gir1.2-ayatanaappindicator3-0.1` — the tray icon and
+  its menu in `tray.py`
+
+```
+apt install python3-gi python3-cairo gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1
+```
+
+The first run downloads the `org.gnome.Platform`/`org.gnome.Sdk`
 runtime (//50) from Flathub if not already present — a few hundred MB.
 
 The very first capture needs a one-time consent, separately for each method.
@@ -63,7 +88,7 @@ capture runs fully headless, no dialog, in about a second.
 Note that the `screencast` grant covers exactly the monitors selected in the
 dialog, identified by vendor/model/serial (not by connector) — it is not a
 grant for "all screens". When the monitor setup changes
-(xdg-desktop-portal-gnome 50):
+(as of xdg-desktop-portal-gnome 50):
 
 - All granted monitors present plus a new one: no prompt, and the new monitor
   is silently missing from the captures.
@@ -117,9 +142,9 @@ capture, e.g. after changing the monitor setup), delete the restore token:
 rm ~/.local/share/timetracker/screencast-token
 ```
 
-To inspect or reset the `screenshot` grant directly (there's no GNOME Settings
-page for this — App Permissions there only covers different,
-malcontent-tracked data):
+To inspect or reset the `screenshot` grant directly (GNOME Settings → Apps has
+a per-app "Screenshots" switch for this, but it only lists apps with a desktop
+entry, and this Flatpak installs none):
 
 ```bash
 # view current grants
@@ -135,6 +160,26 @@ gdbus call --session --dest org.freedesktop.impl.portal.PermissionStore \
 
 To rebuild after editing `screenshot.py` or `pause.py`, just re-run
 `./install.sh` — it rebuilds and reinstalls the Flatpak each time.
+
+## Hardcoded versions
+
+Versions pinned in the project, to revisit when moving to a newer GNOME or
+distribution release:
+
+| What | Version | Where |
+|---|---|---|
+| GNOME Flatpak runtime and SDK (`org.gnome.Platform`, `org.gnome.Sdk`) | `50` | `flatpak/at.it_debug.timetracker.json` (`runtime-version`), `install.sh` (`//50`) — must match |
+| `Gio` bindings API | `2.0` | `screenshot.py`, `markers.py` |
+| `GdkPixbuf` bindings API | `2.0` | `screenshot.py` |
+| `Gst` (GStreamer) bindings API | `1.0` | `screenshot.py` |
+| `Gtk` and `GdkWayland` bindings API (consent window) | `4.0` | `screenshot.py` |
+| `Gtk` bindings API (tray menu) | `3.0` | `tray.py` |
+| `AyatanaAppIndicator3` bindings API | `0.1` | `tray.py` |
+
+The bindings entries are the API versions passed to `gi.require_version()`,
+not package versions. Nothing else is pinned: the host scripts use the
+system's `python3`, and the apt packages are installed at whatever version the
+distribution ships.
 
 ## Usage
 
