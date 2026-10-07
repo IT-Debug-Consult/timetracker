@@ -87,20 +87,18 @@ capture runs fully headless, no dialog, in about a second.
 
 Note that the `screencast` grant covers exactly the monitors selected in the
 dialog, identified by vendor/model/serial (not by connector) — it is not a
-grant for "all screens". When the monitor setup changes
-(as of xdg-desktop-portal-gnome 50):
+grant for "all screens". Left alone, xdg-desktop-portal-gnome 50 keeps using
+the grant when a monitor is added (the new one is silently missing from the
+captures) and re-prompts on every capture when a granted one is missing.
 
-- All granted monitors present plus a new one: no prompt, and the new monitor
-  is silently missing from the captures.
-- Any granted monitor missing (undocked, monitor swapped): the grant is not
-  used and the dialog comes back on every capture until it is answered. If it
-  is ignored, that capture fails after about two minutes.
-- Same monitors on different ports: no prompt, nothing changes.
-
-Answering the dialog replaces the grant. So after approving only the laptop
-panel while undocked, captures stay laptop-only once docked again, without
-any warning — reset the grant (see "Sandboxing" below) and approve all
-monitors to fix that. The `screenshot` method has none of this; it always
+So `screenshot.py` records the enabled monitors (from
+`org.gnome.Mutter.DisplayConfig`, again without connectors) in
+`~/.local/share/timetracker/screencast-screens` whenever it stores a token.
+If the next capture finds a different set — monitor added, removed, swapped,
+disabled — it deletes the token first, so the dialog comes back once: select
+all monitors and click Share. If it is ignored, that capture fails after about
+two minutes and the next one asks again. Moving the same monitors to different
+ports changes nothing. The `screenshot` method has none of this; it always
 captures whatever is connected.
 
 With `screenshot` GNOME refuses to show the consent dialog for a
@@ -136,7 +134,7 @@ that only the real `flatpak run` launcher produces, specifically to prevent
 that kind of identity spoofing.
 
 To reset the `screencast` grant (brings back the one-time dialog on the next
-capture, e.g. after changing the monitor setup), delete the restore token:
+capture), delete the restore token:
 
 ```bash
 rm ~/.local/share/timetracker/screencast-token

@@ -13,8 +13,10 @@ specifically rather than to every unsandboxed process on the system.
 
 The very first capture (or after a permission reset) needs a one-time
 consent grant, separately for each method. For screencast it comes back as
-a restore token, kept in TOKEN_FILE and renewed on every capture; for
-screenshot the portal stores it itself. GNOME refuses to show the
+a restore token, kept in TOKEN_FILE and renewed on every capture; the
+monitors it was granted for are kept in SCREENS_FILE, and when they change
+the token is dropped so the consent dialog comes back. For screenshot the
+portal stores the grant itself. GNOME refuses to show the
 screenshot consent dialog for a headless caller with no window ("only the
 focused app is allowed to show a system access dialog"), so when a request
 fails we briefly open a focused 1x1 window, export its handle, and retry
@@ -24,6 +26,7 @@ succeed headlessly with no window at all.
 
 import argparse
 import itertools
+import json
 import os
 import shutil
 import sys
@@ -42,6 +45,7 @@ import pause
 
 OUTPUT_ROOT = Path.home() / ".local" / "share" / "timetracker" / "screenshots"
 TOKEN_FILE = OUTPUT_ROOT.parent / "screencast-token"
+SCREENS_FILE = OUTPUT_ROOT.parent / "screencast-screens"
 RESPONSE_TIMEOUT_SECONDS = 30
 CONSENT_TIMEOUT_SECONDS = 120
 FRAME_TIMEOUT_SECONDS = 10
@@ -68,6 +72,30 @@ def is_screen_locked(bus: Gio.DBusConnection) -> bool:
         return result.unpack()[0]
     except GLib.Error:
         return False
+
+
+def active_screens(bus: Gio.DBusConnection) -> list | None:
+    """Identify the enabled monitors as a sorted list of [vendor, product, serial]."""
+    try:
+        state = bus.call_sync(
+            "org.gnome.Mutter.DisplayConfig", "/org/gnome/Mutter/DisplayConfig",
+            "org.gnome.Mutter.DisplayConfig", "GetCurrentState", None,
+            None, Gio.DBusCallFlags.NONE, 2000, None,
+        )
+    except GLib.Error:
+        return None
+    logical_monitors = state.unpack()[2]
+    # Connectors are left out: the portal's grant follows the monitor, not the port.
+    return sorted(
+        list(monitor[1:]) for logical in logical_monitors for monitor in logical[5]
+    )
+
+
+def stored_screens() -> list | None:
+    try:
+        return json.loads(SCREENS_FILE.read_text())
+    except (FileNotFoundError, ValueError):
+        return None
 
 
 def portal_request(
@@ -129,6 +157,12 @@ def request_screenshot_uri(bus: Gio.DBusConnection, parent_window: str = "") -> 
 
 def start_screencast(bus: Gio.DBusConnection, parent_window: str = "") -> tuple[str, list] | None:
     """Open a ScreenCast session on all monitors; return (session_handle, streams)."""
+    # The grant covers only the monitors picked in the consent dialog, so a
+    # token from a different monitor setup is dropped to bring the dialog back.
+    screens = active_screens(bus)
+    if screens is not None and screens != stored_screens():
+        TOKEN_FILE.unlink(missing_ok=True)
+
     results = portal_request(bus, SCREENCAST_IFACE, "CreateSession", "", (), {
         "session_handle_token": GLib.Variant("s", "timetracker"),
     })
@@ -164,6 +198,8 @@ def start_screencast(bus: Gio.DBusConnection, parent_window: str = "") -> tuple[
     if "restore_token" in results:
         TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
         TOKEN_FILE.write_text(results["restore_token"])
+        if screens is not None:
+            SCREENS_FILE.write_text(json.dumps(screens))
 
     return session, results["streams"]
 
